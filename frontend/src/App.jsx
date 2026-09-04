@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://weathergpt-nb9r.onrender.com";
 
 function App() {
   const [session, setSession] = useState(null);
