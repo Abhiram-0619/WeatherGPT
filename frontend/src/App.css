@@ -1874,6 +1874,12 @@ button:disabled {
     white-space: nowrap;
   }
 
+  /* Mobile composer position fix */
+  .composer-area {
+    bottom: 12px;
+    padding-bottom: 8px;
+  }
+
   .composer {
     border-radius: 15px;
   }
