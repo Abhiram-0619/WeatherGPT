@@ -2,7 +2,62 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import "./App.css";
 
-const API_URL = "https://weathergpt-nb9r.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "https://weathergpt-nb9r.onrender.com";
+
+const POPULAR_INDIAN_CITIES = [
+  "Hyderabad",
+  "Delhi",
+  "Mumbai",
+  "Bengaluru",
+  "Chennai",
+  "Kolkata",
+  "Pune",
+  "Ahmedabad",
+  "Jaipur",
+  "Lucknow",
+  "Kanpur",
+  "Nagpur",
+  "Indore",
+  "Bhopal",
+  "Visakhapatnam",
+  "Vijayawada",
+  "Surat",
+  "Vadodara",
+  "Patna",
+  "Ranchi",
+  "Bhubaneswar",
+  "Guwahati",
+  "Chandigarh",
+  "Amritsar",
+  "Dehradun",
+  "Srinagar",
+  "Jammu",
+  "Shimla",
+  "Kochi",
+  "Thiruvananthapuram",
+  "Coimbatore",
+  "Madurai",
+  "Mysuru",
+  "Mangaluru",
+  "Nashik",
+  "Aurangabad",
+  "Rajkot",
+  "Udaipur",
+  "Jodhpur",
+  "Agra",
+  "Varanasi",
+  "Prayagraj",
+  "Meerut",
+  "Noida",
+  "Gurugram",
+  "Faridabad",
+  "Thane",
+  "Navi Mumbai",
+  "Kozhikode",
+  "Thrissur",
+  "Salem",
+  "Tiruchirappalli",
+];
 
 function App() {
   const [session, setSession] = useState(null);
@@ -38,6 +93,10 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationPermission, setLocationPermission] = useState("unknown");
+  const [cityPickerOpen, setCityPickerOpen] = useState(false);
+  const [citySearch, setCitySearch] = useState("");
+  const [cityResults, setCityResults] = useState(POPULAR_INDIAN_CITIES);
+  const [citySearchLoading, setCitySearchLoading] = useState(false);
 
   // VOICE
   const [isListening, setIsListening] = useState(false);
@@ -218,6 +277,74 @@ function App() {
         maximumAge: 300000,
       }
     );
+  }
+
+  // ---------------------------------------------------------
+  // MANUAL CITY PICKER
+  // ---------------------------------------------------------
+
+  async function searchIndianCities(query) {
+    const trimmedQuery = query.trim();
+
+    if (!trimmedQuery) {
+      setCityResults(POPULAR_INDIAN_CITIES);
+      setCitySearchLoading(false);
+      return;
+    }
+
+    setCitySearchLoading(true);
+
+    try {
+      const response = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+          trimmedQuery
+        )}&count=20&language=en&format=json&countryCode=IN`
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to search cities");
+      }
+
+      const data = await response.json();
+
+      const results = (data.results || [])
+        .filter((item) => item.country_code === "IN")
+        .map((item) => item.name)
+        .filter((name, index, array) => array.indexOf(name) === index);
+
+      setCityResults(results);
+    } catch (error) {
+      console.error("City search error:", error);
+      setCityResults([]);
+    } finally {
+      setCitySearchLoading(false);
+    }
+  }
+
+  function openCityPicker() {
+    setCityPickerOpen((previous) => !previous);
+    setCitySearch("");
+    setCityResults(POPULAR_INDIAN_CITIES);
+  }
+
+  function handleCityPickerInput(event) {
+    const value = event.target.value;
+    setCitySearch(value);
+
+    if (!value.trim()) {
+      setCityResults(POPULAR_INDIAN_CITIES);
+      return;
+    }
+
+    searchIndianCities(value);
+  }
+
+  function selectIndianCity(cityName) {
+    setCityPickerOpen(false);
+    setCitySearch("");
+    setCityResults(POPULAR_INDIAN_CITIES);
+    setActivePage("chat");
+    loadWeather(cityName);
   }
 
   // ---------------------------------------------------------
@@ -1517,17 +1644,100 @@ function App() {
             </div>
           </div>
 
-          <div className="topbar-location">
+          <div className="topbar-location city-picker-wrap">
             <span>📍</span>
             <strong>{city || "Detecting location..."}</strong>
 
             <button
+              className="location-refresh-button"
               onClick={detectLocation}
-              title="Refresh location"
+              title="Use my current location"
               disabled={locationLoading}
             >
               {locationLoading ? "…" : "⌖"}
             </button>
+
+            <button
+              className={`city-picker-button ${
+                cityPickerOpen ? "open" : ""
+              }`}
+              onClick={openCityPicker}
+              title="Choose city"
+              aria-label="Choose city"
+              aria-expanded={cityPickerOpen}
+            >
+              ⋯
+            </button>
+
+            {cityPickerOpen && (
+              <div className="city-picker-menu">
+                <div className="city-picker-header">
+                  <div>
+                    <strong>Choose a city</strong>
+                    <span>Search any city in India</span>
+                  </div>
+
+                  <button
+                    className="city-picker-close"
+                    onClick={() => setCityPickerOpen(false)}
+                    aria-label="Close city picker"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="city-picker-search">
+                  <span>⌕</span>
+                  <input
+                    autoFocus
+                    value={citySearch}
+                    onChange={handleCityPickerInput}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && citySearch.trim()) {
+                        event.preventDefault();
+                        selectIndianCity(citySearch.trim());
+                      }
+                    }}
+                    placeholder="Search Indian city..."
+                  />
+                </div>
+
+                <button
+                  className="detect-city-option"
+                  onClick={() => {
+                    setCityPickerOpen(false);
+                    detectLocation();
+                  }}
+                >
+                  <span>⌖</span>
+                  <div>
+                    <strong>Use my current location</strong>
+                    <small>Detect automatically</small>
+                  </div>
+                </button>
+
+                <div className="city-picker-list">
+                  {citySearchLoading ? (
+                    <div className="city-picker-status">Searching India...</div>
+                  ) : cityResults.length > 0 ? (
+                    cityResults.map((cityName) => (
+                      <button
+                        className="city-option"
+                        key={cityName}
+                        onClick={() => selectIndianCity(cityName)}
+                      >
+                        <span>📍</span>
+                        <strong>{cityName}</strong>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="city-picker-status">
+                      No matching Indian city found. Press Enter to try this name.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
